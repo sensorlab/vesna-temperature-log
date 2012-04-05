@@ -9,7 +9,8 @@
 #include <libopencm3/stm32/f1/rtc.h>
 #include <libopencm3/stm32/usart.h>
 
-static uint16_t meas_data[48000];
+static const int logging_interval_s = 10;
+static uint16_t meas_data[24000];
 static unsigned int meas_data_n = 0;
 
 /* Set up all the peripherals */
@@ -19,13 +20,18 @@ void setup(void)
 
 	rcc_peripheral_enable_clock(&RCC_APB2ENR, 
 			RCC_APB2ENR_IOPAEN |
-			RCC_APB2ENR_IOPBEN |
+			RCC_APB2ENR_IOPCEN |
 			RCC_APB2ENR_AFIOEN | 
 			RCC_APB2ENR_USART1EN);
 
 	/* GPIO pin for USART TX */
 	gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,
 			GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO9);
+
+	/* GPIO pin for button */
+	gpio_set_mode(GPIOC, GPIO_MODE_INPUT,
+			GPIO_CNF_INPUT_FLOAT, GPIO5);
+	exti_select_source(EXTI5, GPIOC);
 
 	/* Setup USART parameters. */
 	usart_set_baudrate(USART1, 115200);
@@ -77,7 +83,8 @@ static void setup_rtc(void)
 	rtc_awake_from_off(LSE);
 	rtc_set_prescale_val(0x7fff-1);
 
-	EXTI_EMR |= EXTI17;
+	EXTI_EMR |= EXTI5 | EXTI17;
+	exti_set_trigger(EXTI5, EXTI_TRIGGER_RISING);
 	exti_set_trigger(EXTI17, EXTI_TRIGGER_RISING);
 }
 
@@ -109,6 +116,9 @@ void delay(void)
 
 void sleep(void)
 {
+	/* wait for any USART transfer to finish, or the last
+	 * character might get garbled when the CPU goes to 
+	 * sleep */
 	while ((USART_SR(USART1) & USART_SR_TXE) == 0);
 	while ((USART_SR(USART1) & USART_SR_TC) == 0);
 
@@ -120,28 +130,55 @@ void sleep(void)
 	rcc_clock_setup_in_hsi_out_48mhz();
 }
 
+void dump_data(void)
+{
+	unsigned int n;
+	for(n = 0; n < meas_data_n; n++) {
+		printf("%u\n", meas_data[n]);
+	}
+}
+
 int main(void)
 {
 	setup();
 	setup_adc();
 	setup_rtc();
 
-	int v25 = 1775; // 1.43 * ( 2^12 - 1) / 3.3;
-	int avg_slope = 53; // 4.3 * 10^-3 * 10 * (2^12 - 1) / 3.3;
+	uint32_t rtc_counter = rtc_get_counter_val();
+	rtc_set_alarm_time(rtc_counter + logging_interval_s-1);
 
 	while (1) {
+		if(!rtc_check_flag(RTC_ALR)) {
+			dump_data();
+		} else {
+			rtc_clear_flag(RTC_ALR);
+			if(meas_data_n < sizeof(meas_data)) {
 
-		adc_on(ADC1);
-		while (!(ADC_SR(ADC1) & ADC_SR_EOC));
-		int vsense = ADC_DR(ADC1);
-		 
-		int t = ((v25 - vsense) / avg_slope) + 250;
-		uint32_t rtc_counter = rtc_get_counter_val();
+				adc_enable_temperature_sensor(ADC1);
+				adc_on(ADC1);
 
-		gpio_toggle(GPIOB, GPIO2);
-		printf("Hello, world! %d %d.%01d C %d\n", vsense, t / 10, abs(t % 10), rtc_counter);
+				/* Wait for ADC starting up. */
+				int i;
+				for (i = 0; i < 1000; i++)    /* Wait a bit. */
+					__asm__("nop");
 
-		rtc_set_alarm_time(rtc_counter + 5);
+				adc_on(ADC1);
+				while (!(ADC_SR(ADC1) & ADC_SR_EOC));
+				meas_data[meas_data_n] = ADC_DR(ADC1);
+
+				meas_data_n++;
+
+				adc_disable_temperature_sensor(ADC1);
+				adc_off(ADC1);
+			}
+
+			rtc_counter = rtc_get_counter_val();
+			rtc_set_alarm_time(rtc_counter + logging_interval_s-1);
+
+			//printf("%lu\n", rtc_counter);
+
+		}
+
 		sleep();
 		//delay();
 	}
