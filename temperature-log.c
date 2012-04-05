@@ -33,6 +33,18 @@ void setup(void)
 			GPIO_CNF_INPUT_FLOAT, GPIO5);
 	exti_select_source(EXTI5, GPIOC);
 
+	/* GPIO pin for Vcc switcher */
+	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
+			GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);
+	/* force switcher on */
+	gpio_set(GPIOC, GPIO13);
+
+	/* GPIO pin for amplifier */
+	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
+			GPIO_CNF_OUTPUT_PUSHPULL, GPIO1);
+	/* turn off */
+	gpio_clear(GPIOC, GPIO1);
+
 	/* Setup USART parameters. */
 	usart_set_baudrate(USART1, 115200);
 	usart_set_databits(USART1, 8);
@@ -124,6 +136,7 @@ void sleep(void)
 
 	SCB_SCR |= SCB_SCR_SLEEPDEEP;
 	PWR_CR &= ~PWR_CR_PDDS;
+	PWR_CR |= PWR_CR_LPDS;
 
 	__asm__("wfe");
 
