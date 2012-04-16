@@ -110,9 +110,10 @@ uint16_t measure(void)
 	adc_on(ADC1);
 	adc_enable_temperature_sensor(ADC1);
 
-	/* tstab = 1us */
+	/* tstab = 1 us
+	 * tstart = 10 us */
 	int i;
-	for (i = 0; i < 10; i++)
+	for (i = 0; i < 1000; i++)
 		__asm__("nop");
 
 	adc_reset_calibration(ADC1);
