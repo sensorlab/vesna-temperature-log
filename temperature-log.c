@@ -73,17 +73,6 @@ void setup_adc(void)
 	adc_set_right_aligned(ADC1);
 	adc_set_conversion_time_on_all_channels(ADC1, ADC_SMPR_SMP_239DOT5CYC);
 
-	adc_on(ADC1);
-	adc_enable_temperature_sensor(ADC1);
-
-	/* Wait for ADC starting up. */
-	int i;
-	for (i = 0; i < 800000; i++)    /* Wait a bit. */
-		__asm__("nop");
-
-	adc_reset_calibration(ADC1);
-	adc_calibration(ADC1);
-
 	uint8_t channel_array[16];
 	/* Select the channel we want to convert. */
 	channel_array[0] = 16;
@@ -114,6 +103,29 @@ int _write(int file, char *ptr, int len)
 		errno = EIO;
 		return -1;
 	}
+}
+
+uint16_t measure(void)
+{
+	adc_on(ADC1);
+	adc_enable_temperature_sensor(ADC1);
+
+	/* tstab = 1us */
+	int i;
+	for (i = 0; i < 10; i++)
+		__asm__("nop");
+
+	adc_reset_calibration(ADC1);
+	adc_calibration(ADC1);
+
+	adc_on(ADC1);
+	while (!(ADC_SR(ADC1) & ADC_SR_EOC));
+	uint16_t v = ADC_DR(ADC1);
+
+	adc_disable_temperature_sensor(ADC1);
+	adc_off(ADC1);
+
+	return v;
 }
 
 /* Delay execution for some arbitrary amount of time */
@@ -166,23 +178,8 @@ int main(void)
 		} else {
 			rtc_clear_flag(RTC_ALR);
 			if(meas_data_n < sizeof(meas_data)) {
-
-				adc_enable_temperature_sensor(ADC1);
-				adc_on(ADC1);
-
-				/* Wait for ADC starting up. */
-				int i;
-				for (i = 0; i < 1000; i++)    /* Wait a bit. */
-					__asm__("nop");
-
-				adc_on(ADC1);
-				while (!(ADC_SR(ADC1) & ADC_SR_EOC));
-				meas_data[meas_data_n] = ADC_DR(ADC1);
-
+				meas_data[meas_data_n] = measure();
 				meas_data_n++;
-
-				adc_disable_temperature_sensor(ADC1);
-				adc_off(ADC1);
 			}
 
 			rtc_counter = rtc_get_counter_val();
