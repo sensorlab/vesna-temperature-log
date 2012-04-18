@@ -9,7 +9,7 @@
 #include <libopencm3/stm32/f1/rtc.h>
 #include <libopencm3/stm32/usart.h>
 
-static const int logging_interval_s = 10;
+static const int logging_interval_s = 120;
 static uint16_t meas_data[24000];
 static unsigned int meas_data_n = 0;
 
