@@ -1,0 +1,84 @@
+Introduction
+============
+
+This is a temperature logging application for VESNA. It periodically logs
+temperature readings from the internal temperature sensor in the STM32F103
+microcontroller to SRAM. Logged data is dumped on the serial port at the
+push of the button.
+
+It puts the microcontroller to stop mode between readouts and shuts down
+most of hardware on board VESNA so it is possible to run this application
+on battery power. The current draw is in the order of a few milliamperes.
+
+
+Compilation
+===========
+
+To compile and upload firmware to a VESNA using OpenOCD and Olimex
+ARM-USB-OCD:
+
+$ make temperature-log.u
+
+You can adjust the logging interval via a constant in the temperature-log.c
+source file.
+
+
+Usage
+=====
+
+Logging starts as soon as VESNA boots.
+
+Note that when running on battery power VESNA will start only after the
+button has been pressed.
+
+Temperature will be logged until memory is exhausted (24000 measurements by
+default).
+
+To write the log to a file, connect VESNA to a serial port and run:
+
+$ stty -F /dev/ttyUSB0 115200
+$ cat /dev/ttyUSB0 > temperature-log.csv
+
+Or use your favorite serial terminal emulator.
+
+Press the button on VESNA to transfer the data. Be careful to only press
+the button for a short time. A press longer than 1 second will reset VESNA
+and all the measurements will be lost.
+
+
+Note that to obtain the temperature in degrees Celsius from the logged
+samples you must use the following function:
+
+                        n * 3.3         1
+    Tc = 25 C + ( V25 - -------- ) * -------
+                        2^12 - 1      kslope
+
+Where:
+
+    n      - temperature sensor samples
+    V25    - sensor voltage at 25 C     (typ. 1.43 V)
+    kslope - sensor slope               (typ. 4.3  mV/C)
+
+Refer to the STM32F103 datasheet and reference manual for details.
+
+
+License
+=======
+
+Copyright (C) 2012 SensorLab, Jozef Stefan Institute
+http://sensorlab.ijs.si
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+Author: Tomaz Solc, <tomaz.solc@ijs.si>
