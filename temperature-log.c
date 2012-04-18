@@ -176,8 +176,9 @@ void sleep(void)
 void dump_data(void)
 {
 	unsigned int n;
+	printf("#t [s]\tn [samples]\n");
 	for(n = 0; n < meas_data_n; n++) {
-		printf("%u\n", meas_data[n]);
+		printf("%d\t%u\n", n*logging_interval_s, meas_data[n]);
 	}
 }
 
